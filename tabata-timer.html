@@ -1,0 +1,583 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tabata</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Space+Mono:wght@400;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#F4EFE4;
+    --ink-dim:#C9C2B3;
+    --clay:#E4552B;
+    --clay-dim:#8A331C;
+    --turf:#2FA88C;
+    --turf-dim:#175B4C;
+    --flood:#F0B23D;
+    --flood-dim:#8A6316;
+    --gold:#E9C765;
+    --void:#0D1017;
+    --panel:rgba(9,11,16,0.92);
+    --line:rgba(244,239,228,0.14);
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color: transparent;}
+  html,body{height:100%; margin:0;}
+  body{
+    font-family:'Inter',sans-serif;
+    background:var(--void);
+    color:var(--ink);
+    overflow:hidden;
+    height:100vh;
+    width:100vw;
+    position:relative;
+    transition:background 0.6s ease;
+  }
+  body.phase-warmup{ background: radial-gradient(circle at 50% 20%, #3a2a0d 0%, var(--void) 70%); }
+  body.phase-work{ background: radial-gradient(circle at 50% 20%, #3a140a 0%, var(--void) 70%); }
+  body.phase-rest{ background: radial-gradient(circle at 50% 20%, #0c2c26 0%, var(--void) 70%); }
+  body.phase-done{ background: radial-gradient(circle at 50% 20%, #2a230c 0%, var(--void) 70%); }
+
+  .stage{
+    height:100%; width:100%;
+    display:flex; flex-direction:column;
+    align-items:center; justify-content:center;
+    padding: 4vh 4vw;
+    position:relative;
+  }
+
+  .lane-track{
+    position:absolute; top:0; left:0; right:0; height:6px;
+    background:var(--line);
+  }
+  .lane-fill{
+    height:100%; width:0%;
+    background: var(--clay);
+    transition: width 0.25s linear, background 0.6s ease;
+  }
+  .phase-rest .lane-fill{ background:var(--turf); }
+  .phase-warmup .lane-fill{ background:var(--flood); }
+  .phase-done .lane-fill{ background:var(--gold); }
+
+  .eyebrow{
+    font-family:'Space Mono', monospace;
+    letter-spacing:0.35em;
+    font-size: clamp(12px, 1.6vw, 18px);
+    color: var(--ink-dim);
+    text-transform:uppercase;
+    margin-bottom: 1vh;
+  }
+
+  .phase-label{
+    font-family:'Bebas Neue', sans-serif;
+    letter-spacing:0.08em;
+    font-size: clamp(28px, 5vw, 56px);
+    color: var(--clay);
+    text-transform:uppercase;
+    transition:color 0.5s ease;
+  }
+  .phase-rest .phase-label{ color:var(--turf); }
+  .phase-warmup .phase-label{ color:var(--flood); }
+  .phase-done .phase-label{ color:var(--gold); }
+
+  .clock{
+    font-family:'Bebas Neue', sans-serif;
+    font-size: clamp(120px, 32vw, 420px);
+    line-height:0.95;
+    letter-spacing: 0.02em;
+    margin: 1vh 0;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .round-row{
+    display:flex; align-items:center; gap: 10px;
+    margin-top:2vh;
+  }
+  .pip{
+    width: clamp(8px,1.1vw,14px);
+    height: clamp(8px,1.1vw,14px);
+    border-radius:50%;
+    border:2px solid var(--line);
+    background:transparent;
+    transition: all 0.3s ease;
+  }
+  .pip.done{ background:var(--ink-dim); border-color:var(--ink-dim); }
+  .pip.current{ background:var(--clay); border-color:var(--clay); transform:scale(1.5); }
+  .phase-rest .pip.current{ background:var(--turf); border-color:var(--turf); }
+  .phase-warmup .pip.current{ background:var(--flood); border-color:var(--flood); }
+
+  .round-count{
+    font-family:'Space Mono', monospace;
+    font-size: clamp(14px, 1.8vw, 22px);
+    color: var(--ink-dim);
+    margin-top: 1.2vh;
+    letter-spacing:0.1em;
+  }
+
+  /* Idle hero */
+  .idle-hero{ text-align:center; }
+  .idle-title{
+    font-family:'Bebas Neue', sans-serif;
+    font-size: clamp(50px, 9vw, 120px);
+    letter-spacing:0.06em;
+    color: var(--clay);
+  }
+  .idle-sub{
+    font-family:'Space Mono', monospace;
+    color: var(--ink-dim);
+    font-size: clamp(13px, 1.6vw, 18px);
+    margin-top: 1vh;
+    letter-spacing: 0.08em;
+  }
+
+  /* Floating controls (bottom bar, minimal, works for both TV & phone) */
+  .dock{
+    position:absolute; bottom: 3vh; left:50%; transform:translateX(-50%);
+    display:flex; align-items:center; gap: 14px;
+    z-index: 5;
+  }
+  .btn{
+    font-family:'Space Mono', monospace;
+    border:1px solid var(--line);
+    background: var(--panel);
+    color: var(--ink);
+    padding: 12px 22px;
+    border-radius: 999px;
+    font-size: 14px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    cursor:pointer;
+    backdrop-filter: blur(6px);
+    transition: border-color 0.2s ease, transform 0.15s ease;
+  }
+  .btn:hover{ border-color: var(--clay); }
+  .btn:active{ transform: scale(0.96); }
+  .btn.primary{ background: var(--clay); color:#1a0a05; border-color:var(--clay); font-weight:700;}
+  .btn.icon{ padding: 12px 16px; font-size:16px; }
+
+  /* Gear / settings toggle */
+  .gear{
+    position:absolute; top: 3vh; right: 3vw;
+    width: 46px; height:46px; border-radius:50%;
+    border:1px solid var(--line); background: var(--panel);
+    color: var(--ink); font-size:20px;
+    display:flex; align-items:center; justify-content:center;
+    cursor:pointer; z-index:6;
+  }
+  .link-note{
+    position:absolute; top:3vh; left:3vw;
+    font-family:'Space Mono', monospace;
+    font-size: 11px; color: var(--ink-dim);
+    letter-spacing:0.1em; opacity:0.6;
+  }
+
+  /* Settings drawer */
+  .drawer-backdrop{
+    position:fixed; inset:0; background:rgba(0,0,0,0.55);
+    z-index:10; display:none;
+  }
+  .drawer-backdrop.open{ display:block; }
+  .drawer{
+    position:fixed; top:0; right:0; height:100%; width: min(380px, 92vw);
+    background: #10131c; border-left:1px solid var(--line);
+    padding: 28px 24px; z-index:11;
+    transform: translateX(100%);
+    transition: transform 0.3s ease;
+    overflow-y:auto;
+  }
+  .drawer.open{ transform: translateX(0); }
+  .drawer h2{
+    font-family:'Bebas Neue', sans-serif; letter-spacing:0.06em;
+    font-size: 28px; margin: 0 0 4px 0; color:var(--clay);
+  }
+  .drawer .hint{ font-size:12px; color:var(--ink-dim); margin-bottom:22px; line-height:1.5; }
+  .field{ margin-bottom:18px; }
+  .field label{
+    display:flex; justify-content:space-between; align-items:center;
+    font-family:'Space Mono', monospace; font-size:12px; letter-spacing:0.06em;
+    color: var(--ink-dim); text-transform:uppercase; margin-bottom:8px;
+  }
+  .field label span.val{ color:var(--ink); font-size:14px; }
+  .field input[type=range]{
+    width:100%; accent-color: var(--clay);
+  }
+  .drawer-actions{ display:flex; gap:10px; margin-top:24px; flex-wrap:wrap; }
+  .drawer-actions .btn{ flex:1; text-align:center; }
+  .toggle-row{
+    display:flex; justify-content:space-between; align-items:center;
+    padding: 10px 0; border-top:1px solid var(--line); margin-top:10px;
+  }
+  .toggle-row span{ font-size:13px; color:var(--ink-dim); }
+  .switch{
+    width:44px; height:24px; border-radius:99px; background:var(--line);
+    position:relative; cursor:pointer; border:none;
+  }
+  .switch.on{ background:var(--clay); }
+  .switch::after{
+    content:''; position:absolute; top:3px; left:3px; width:18px; height:18px;
+    border-radius:50%; background:var(--ink); transition: left 0.2s ease;
+  }
+  .switch.on::after{ left:23px; }
+  .status-line{
+    font-family:'Space Mono', monospace; font-size:11px; color: var(--ink-dim);
+    margin-top:18px; opacity:0.7;
+  }
+
+  @media (max-width:520px){
+    .dock{ gap:10px; }
+    .btn{ padding:10px 16px; font-size:12px; }
+  }
+
+  .fade-in{ animation: fadeIn 0.4s ease; }
+  @keyframes fadeIn{ from{opacity:0} to{opacity:1} }
+</style>
+</head>
+<body class="phase-warmup">
+
+  <div class="lane-track"><div class="lane-fill" id="laneFill"></div></div>
+  <div class="link-note">TABATA</div>
+  <div class="gear" id="gearBtn">⚙</div>
+
+  <div class="stage" id="stage">
+    <!-- filled by JS -->
+  </div>
+
+  <div class="dock" id="dock">
+    <button class="btn icon" id="resetBtn" title="Reiniciar">↺</button>
+    <button class="btn primary" id="playBtn">Empezar</button>
+  </div>
+
+  <div class="drawer-backdrop" id="drawerBackdrop"></div>
+  <div class="drawer" id="drawer">
+    <h2>Configuración</h2>
+    <div class="hint">Los cambios se guardan y se sincronizan con cualquier otra pantalla que tenga esta misma página abierta (por ejemplo, la TV) en un par de segundos.</div>
+
+    <div class="field">
+      <label>Calentamiento <span class="val" id="warmupVal">10s</span></label>
+      <input type="range" id="warmupInput" min="0" max="60" step="5">
+    </div>
+    <div class="field">
+      <label>Trabajo <span class="val" id="workVal">20s</span></label>
+      <input type="range" id="workInput" min="5" max="120" step="5">
+    </div>
+    <div class="field">
+      <label>Descanso <span class="val" id="restVal">10s</span></label>
+      <input type="range" id="restInput" min="0" max="120" step="5">
+    </div>
+    <div class="field">
+      <label>Rondas <span class="val" id="roundsVal">8</span></label>
+      <input type="range" id="roundsInput" min="1" max="20" step="1">
+    </div>
+
+    <div class="toggle-row">
+      <span>Sonido en este dispositivo</span>
+      <button class="switch on" id="soundToggle"></button>
+    </div>
+
+    <div class="drawer-actions">
+      <button class="btn" id="applyBtn">Aplicar y reiniciar</button>
+    </div>
+    <div class="status-line" id="syncStatus">Sincronizando…</div>
+  </div>
+
+<script>
+(function(){
+  const STORAGE_KEY = 'tabata-state';
+  const DEFAULT_CONFIG = { warmupSec:10, workSec:20, restSec:10, rounds:8 };
+  let state = {
+    config: {...DEFAULT_CONFIG},
+    status: 'idle', // idle | running | paused | done
+    runStartEpoch: null,
+    pausedElapsedMs: 0
+  };
+  let soundOn = true;
+  let lastPhaseKey = null;
+  let lastBeepSecond = null;
+  let writeLock = false;
+
+  // ---------- Audio ----------
+  let actx = null;
+  function ensureAudio(){ if(!actx){ try{ actx = new (window.AudioContext||window.webkitAudioContext)(); }catch(e){} } }
+  function beep(freq, dur, vol){
+    if(!soundOn) return;
+    ensureAudio();
+    if(!actx) return;
+    try{
+      const o = actx.createOscillator();
+      const g = actx.createGain();
+      o.type = 'sine';
+      o.frequency.value = freq;
+      g.gain.value = vol||0.2;
+      o.connect(g); g.connect(actx.destination);
+      const now = actx.currentTime;
+      g.gain.setValueAtTime(vol||0.2, now);
+      g.gain.exponentialRampToValueAtTime(0.001, now + dur);
+      o.start(now); o.stop(now + dur);
+    }catch(e){}
+  }
+  function phaseStartSound(type){
+    if(type==='work') beep(880, 0.28, 0.25);
+    else if(type==='rest') beep(440, 0.28, 0.22);
+    else if(type==='warmup') beep(600, 0.2, 0.2);
+    else if(type==='done'){ beep(660,0.15,0.2); setTimeout(()=>beep(880,0.15,0.2),150); setTimeout(()=>beep(1100,0.35,0.22),300); }
+  }
+  function countdownBeep(){ beep(1000, 0.09, 0.18); }
+
+  // ---------- Phase math ----------
+  function buildPhases(cfg){
+    const phases = [];
+    if(cfg.warmupSec > 0) phases.push({type:'warmup', dur:cfg.warmupSec});
+    for(let i=1;i<=cfg.rounds;i++){
+      phases.push({type:'work', dur:cfg.workSec, round:i});
+      if(i < cfg.rounds && cfg.restSec > 0) phases.push({type:'rest', dur:cfg.restSec, round:i});
+    }
+    return phases;
+  }
+  function totalDuration(phases){ return phases.reduce((a,p)=>a+p.dur,0); }
+  function currentPhaseInfo(phases, elapsedSec){
+    let acc = 0;
+    for(const p of phases){
+      if(elapsedSec < acc + p.dur){
+        return { phase:p, remaining: Math.max(0, acc+p.dur-elapsedSec), elapsedInPhase: elapsedSec-acc, startedAt: acc };
+      }
+      acc += p.dur;
+    }
+    return null;
+  }
+  function workRoundsCount(cfg){ return cfg.rounds; }
+
+  // ---------- Storage ----------
+  async function loadState(){
+    try{
+      const res = await window.storage.get(STORAGE_KEY, true);
+      if(res && res.value){
+        const parsed = JSON.parse(res.value);
+        state = Object.assign({config:{...DEFAULT_CONFIG}}, parsed);
+        document.getElementById('syncStatus').textContent = 'Sincronizado';
+      }
+    }catch(e){
+      // no state yet, write default
+      await saveState();
+    }
+  }
+  async function saveState(){
+    try{
+      writeLock = true;
+      await window.storage.set(STORAGE_KEY, JSON.stringify(state), true);
+      document.getElementById('syncStatus').textContent = 'Sincronizado';
+    }catch(e){
+      document.getElementById('syncStatus').textContent = 'Error al guardar — reintentando…';
+    }finally{
+      writeLock = false;
+    }
+  }
+  async function pollState(){
+    if(writeLock) return;
+    try{
+      const res = await window.storage.get(STORAGE_KEY, true);
+      if(res && res.value){
+        const parsed = JSON.parse(res.value);
+        state = Object.assign({config:{...DEFAULT_CONFIG}}, parsed);
+        syncControlsFromState();
+      }
+    }catch(e){ /* key might not exist yet */ }
+  }
+
+  // ---------- Controls actions ----------
+  async function handleStart(){
+    ensureAudio();
+    if(state.status === 'idle' || state.status === 'done'){
+      state.status = 'running';
+      state.runStartEpoch = Date.now();
+      state.pausedElapsedMs = 0;
+    } else if(state.status === 'paused'){
+      state.status = 'running';
+      state.runStartEpoch = Date.now() - state.pausedElapsedMs;
+    } else if(state.status === 'running'){
+      state.status = 'paused';
+      state.pausedElapsedMs = Date.now() - state.runStartEpoch;
+    }
+    await saveState();
+    render();
+  }
+  async function handleReset(){
+    state.status = 'idle';
+    state.runStartEpoch = null;
+    state.pausedElapsedMs = 0;
+    lastPhaseKey = null; lastBeepSecond = null;
+    await saveState();
+    render();
+  }
+  async function handleApplyConfig(){
+    state.config = {
+      warmupSec: parseInt(document.getElementById('warmupInput').value,10),
+      workSec: parseInt(document.getElementById('workInput').value,10),
+      restSec: parseInt(document.getElementById('restInput').value,10),
+      rounds: parseInt(document.getElementById('roundsInput').value,10)
+    };
+    state.status = 'idle';
+    state.runStartEpoch = null;
+    state.pausedElapsedMs = 0;
+    await saveState();
+    closeDrawer();
+    render();
+  }
+
+  // ---------- Rendering ----------
+  const stage = document.getElementById('stage');
+  const body = document.body;
+
+  function fmtTime(sec){
+    sec = Math.max(0, Math.ceil(sec));
+    const m = Math.floor(sec/60);
+    const s = sec % 60;
+    return m>0 ? (m + ':' + String(s).padStart(2,'0')) : String(s);
+  }
+
+  function labelFor(type){
+    return { warmup:'Calentamiento', work:'Trabajo', rest:'Descanso', done:'¡Listo!' }[type] || '';
+  }
+
+  function render(){
+    const cfg = state.config;
+    const phases = buildPhases(cfg);
+    const total = totalDuration(phases);
+    let elapsedSec = 0;
+    let info = null;
+
+    if(state.status === 'running' && state.runStartEpoch){
+      elapsedSec = (Date.now() - state.runStartEpoch) / 1000;
+    } else if(state.status === 'paused'){
+      elapsedSec = state.pausedElapsedMs / 1000;
+    }
+
+    if(state.status === 'running' || state.status === 'paused'){
+      info = currentPhaseInfo(phases, elapsedSec);
+      if(!info && state.status === 'running'){
+        // finished
+        state.status = 'done';
+        saveState();
+      }
+    }
+
+    // body class + lane fill
+    let phaseType = 'warmup';
+    if(state.status === 'idle') phaseType = phases[0] ? phases[0].type : 'warmup';
+    if(state.status === 'done') phaseType = 'done';
+    if(info) phaseType = info.phase.type;
+    body.className = 'phase-' + phaseType;
+
+    const fillPct = state.status==='done' ? 100 : (total>0 ? Math.min(100, (elapsedSec/total)*100) : 0);
+    document.getElementById('laneFill').style.width = fillPct + '%';
+
+    // sound triggers
+    const phaseKey = info ? (info.phase.type + '-' + (info.phase.round||0)) : (state.status==='done' ? 'done' : null);
+    if(state.status === 'running'){
+      if(phaseKey && phaseKey !== lastPhaseKey){
+        phaseStartSound(info.phase.type);
+        lastPhaseKey = phaseKey;
+        lastBeepSecond = null;
+      }
+      if(info){
+        const remCeil = Math.ceil(info.remaining);
+        if(remCeil <= 3 && remCeil >= 1 && remCeil !== lastBeepSecond){
+          countdownBeep();
+          lastBeepSecond = remCeil;
+        }
+      }
+      if(state.status === 'done' && lastPhaseKey !== 'done'){
+        phaseStartSound('done'); lastPhaseKey = 'done';
+      }
+    }
+
+    // build stage content
+    if(state.status === 'idle'){
+      const mins = Math.round(total/60*10)/10;
+      stage.innerHTML = `
+        <div class="idle-hero fade-in">
+          <div class="eyebrow">Tabata listo</div>
+          <div class="idle-title">${cfg.workSec}s / ${cfg.restSec}s</div>
+          <div class="idle-sub">${cfg.rounds} rondas · ${cfg.warmupSec}s de calentamiento · ~${mins} min en total</div>
+        </div>`;
+    } else if(state.status === 'done'){
+      stage.innerHTML = `
+        <div class="idle-hero fade-in">
+          <div class="eyebrow">Entrenamiento completo</div>
+          <div class="idle-title" style="color:var(--gold)">¡Listo!</div>
+          <div class="idle-sub">${cfg.rounds} rondas de ${cfg.workSec}s completadas</div>
+        </div>`;
+    } else if(info){
+      const round = info.phase.round;
+      let pipsHtml = '';
+      for(let i=1;i<=cfg.rounds;i++){
+        let cls = 'pip';
+        if(round && i < round) cls += ' done';
+        else if(round && i === round) cls += ' current';
+        pipsHtml += `<div class="${cls}"></div>`;
+      }
+      stage.innerHTML = `
+        <div class="eyebrow">${round ? ('Ronda ' + round + ' de ' + cfg.rounds) : ''}</div>
+        <div class="phase-label">${labelFor(info.phase.type)}</div>
+        <div class="clock">${fmtTime(info.remaining)}</div>
+        <div class="round-row">${pipsHtml}</div>
+        <div class="round-count">${state.status==='paused' ? 'EN PAUSA' : ''}</div>
+      `;
+    }
+
+    // play button label
+    const playBtn = document.getElementById('playBtn');
+    if(state.status === 'running') playBtn.textContent = 'Pausar';
+    else if(state.status === 'paused') playBtn.textContent = 'Continuar';
+    else if(state.status === 'done') playBtn.textContent = 'Empezar de nuevo';
+    else playBtn.textContent = 'Empezar';
+  }
+
+  // ---------- Drawer ----------
+  const drawer = document.getElementById('drawer');
+  const backdrop = document.getElementById('drawerBackdrop');
+  function openDrawer(){
+    document.getElementById('warmupInput').value = state.config.warmupSec;
+    document.getElementById('workInput').value = state.config.workSec;
+    document.getElementById('restInput').value = state.config.restSec;
+    document.getElementById('roundsInput').value = state.config.rounds;
+    updateSliderLabels();
+    drawer.classList.add('open'); backdrop.classList.add('open');
+  }
+  function closeDrawer(){ drawer.classList.remove('open'); backdrop.classList.remove('open'); }
+  function updateSliderLabels(){
+    document.getElementById('warmupVal').textContent = document.getElementById('warmupInput').value + 's';
+    document.getElementById('workVal').textContent = document.getElementById('workInput').value + 's';
+    document.getElementById('restVal').textContent = document.getElementById('restInput').value + 's';
+    document.getElementById('roundsVal').textContent = document.getElementById('roundsInput').value;
+  }
+  function syncControlsFromState(){
+    if(!drawer.classList.contains('open')){
+      // keep sliders fresh even when closed, so opening shows latest
+    }
+    render();
+  }
+
+  document.getElementById('gearBtn').addEventListener('click', openDrawer);
+  backdrop.addEventListener('click', closeDrawer);
+  ['warmupInput','workInput','restInput','roundsInput'].forEach(id=>{
+    document.getElementById(id).addEventListener('input', updateSliderLabels);
+  });
+  document.getElementById('applyBtn').addEventListener('click', handleApplyConfig);
+  document.getElementById('playBtn').addEventListener('click', handleStart);
+  document.getElementById('resetBtn').addEventListener('click', handleReset);
+  document.getElementById('soundToggle').addEventListener('click', function(){
+    soundOn = !soundOn;
+    this.classList.toggle('on', soundOn);
+  });
+
+  // ---------- Init ----------
+  (async function init(){
+    await loadState();
+    render();
+    setInterval(render, 200);
+    setInterval(pollState, 1500);
+  })();
+})();
+</script>
+</body>
+</html>
